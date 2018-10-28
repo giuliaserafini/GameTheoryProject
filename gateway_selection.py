@@ -71,4 +71,16 @@ def K_i(device, gateway, space):
     else:
         return gap_demand_capacity
 
+#binary variable which says if the device i is associated to the gateway j, the matrix is a device*gateeway matrix in which is cell is 1 or 0
+def device_gateway_assignment(device, gateway, device_gateway_matrix):
+    return device_gateway_matrix[int(device.replace('device', '')-1)][int(gateway.replace('gateway', ''))-1]
+ 
+
+def utility(device, gateway, device_gateway_matrix, space):
+    m = 0
+    for dev in range(len(device_gateway_matrix)):
+        m+=device_gateway_assignment(dev, gateway, device_gateway_matrix)
+    return (BANDWIDTH/m)-K_i(device, gateway, space)
+    
+
 
