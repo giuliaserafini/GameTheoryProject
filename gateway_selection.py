@@ -36,7 +36,7 @@ def Rssi(device, gateway, space):
 
 #P_ei 
 def power_device_gateway(device, gateway, space):
-    return GATEWAY_POWER[gateway]/(abs(Rssi(device, gateway, space))/10)
+    return GATEWAY_POWER[gateway]/math.pow(10, abs(Rssi(device, gateway, space))/10)
 
 #P_noise 
 def power_noise(device, gateway, space):
