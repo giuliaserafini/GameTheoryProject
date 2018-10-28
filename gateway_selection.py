@@ -8,7 +8,7 @@ ALPHA = 1           #threshold value for the difference demand and channel capac
 #the gateway power is given 
 GATEWAY_POWER = {'gateway1': 20, 'gateway2': 30, 'gateway3': 15}  
 
-DEVICE_DEMAND = {'device1': 5, 'device2': 7, 'device3':4, 'device5': 2}
+DEVICE_DEMAND = {'device1': 5, 'device2': 7, 'device3':4, 'device4': 8, 'device5': 2}
 
 #structure of our space (gateways and devices)   
 space = [["device1","","",""],                      
@@ -58,7 +58,7 @@ def power_noise(device, gateway, space):
 def SNR(device, gateway, space):
     return power_device_gateway(device, gateway, space)/power_noise(device, gateway, space)
 
-#C between device ei and gateway 
+#C between device ei and gateway gj
 def capacity(device, gateway, space):
     return BANDWIDTH*math.log2(1+SNR(device, gateway, space))
 
