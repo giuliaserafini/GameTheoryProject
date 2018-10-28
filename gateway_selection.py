@@ -3,9 +3,13 @@ import math
 BANDWIDTH = 10      #bandwidth of the channel (assumption: each gateway has the same bandwidth)
 PZERO = 1           #maximum signal intensity estimated 1 meter from the gateway
 PL = (2+7)/2        #path loss value usually set at a value from 2 to 7
+ALPHA = 1           #threshold value for the difference demand and channel capacity 
 
 #the gateway power is given 
 GATEWAY_POWER = {'gateway1': 20, 'gateway2': 30, 'gateway3': 15}  
+
+DEVICE_DEMAND = {'device1': 5, 'device2': 7, 'device3':4, 'device5': 2}
+
 #structure of our space (gateways and devices)   
 space = [["device1","","",""],                      
          ["device5","device2","",""],
@@ -57,5 +61,14 @@ def SNR(device, gateway, space):
 #C between device ei and gateway 
 def capacity(device, gateway, space):
     return BANDWIDTH*math.log2(1+SNR(device, gateway, space))
+
+def K_i(device, gateway, space):
+    gap_demand_capacity = DEVICE_DEMAND[device]-capacity(device, gateway, space)
+    if(gap_demand_capacity <= 0):
+        return 0
+    elif(gap_demand_capacity > 0 and gap_demand_capacity < ALPHA):
+        return DEVICE_DEMAND[device]/capacity(device, gateway, space)
+    else:
+        return gap_demand_capacity
 
 
