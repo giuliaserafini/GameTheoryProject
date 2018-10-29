@@ -17,6 +17,47 @@ space = [["device1","","",""],
          ["","","device4","gateway2"],
          ["gateway1","","",""]]
 
+class Device(object):
+    COUNT = 0
+
+class Gateway(object):
+    COUNT = 0
+
+    def __init__(self):
+        Gateway.COUNT += 1
+        self.__ID = Gateway.COUNT
+    
+    ID = property(lambda self: self.__ID)
+
+class Space(object):
+    def __init__(self, rows, columns):
+        if rows is None or rows <= 0:
+            raise ValueError("Rows must be an integer, greater than zero.")
+        if columns is None or columns <= 0:
+            raise ValueError("Columns must be an integer, greater than zero.")
+        self.__rows = rows
+        self.__columns = columns
+        self.__positions = [[None for _ in range(self.__columns)] for _ in range(self.__rows)]
+
+    def add_element(self, x, y, element):
+        if x < 0 or x >= self.__rows:
+            raise ValueError("The index x must be between 0 and the number of rows.")
+        if y < 0 or y >= self.__columns:
+            raise ValueError("The index y must be between 0 and the number of columns.")
+        if self.__positions[x][y] is None or sum([element in row for row in self.__positions]) > 0:
+            raise ValueError("The postion ({},{}) is already taken, or the element is already placed.".format(x, y))
+        else:
+            self.__positions[x][y] = element
+    
+    def get_element_position(self, element):
+        for i in range(self.__rows):
+            for j in range(self.__columns):
+                if self.__positions[i][j] == element:
+                    return (i, j)
+        return (None, None)
+        
+
+
 
 #given a string and a 2-dim space (matrix with string elements),
 #it returns the position row-column of object in space
@@ -84,3 +125,7 @@ def utility(device, gateway, device_gateway_matrix, space):
     
 
 
+if __name__ == "__main__":
+    for _ in range(10):
+        a = Gateway()
+        print(a.ID)
