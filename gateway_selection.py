@@ -2,18 +2,28 @@ from enum import IntEnum
 from random import randint
 
 class DeviceType(IntEnum):
+    """
+    This enumerator describes the device's type.\n
+    Only two types are modeled: type A and type B.
+    """
     TYPE_A = 1
     TYPE_B = 2
 
 class Gateway(object):
+    """
+    This class describes an IOT gateway, with its bandwidth, shared among all the devices, and the reachability radius.
+    """
     COUNTER = 0
 
     def __init__(self, bandwidth, radius=25):
         if bandwidth is None or bandwidth <= 0:
             raise ValueError("Bandwidth must be greater than zero.")
         
+        if radius is None or radius <= 0:
+            raise ValueError("Radius must be greater than zero.")
+        
         Gateway.COUNTER += 1
-        #TODO da controllare se viene passato
+
         self.__ID = Gateway.COUNTER
         self.__bandwidth = bandwidth
         self.__radius = radius
@@ -69,15 +79,20 @@ class Displacement(object):
 
 class Space(object):
     def __init__(self, rows, columns):
+        if rows is None or rows <= 0:
+            raise ValueError("Rows must be greater than zero.")
+        if columns is None or columns <= 0:
+            raise ValueError("Columns must be greater than zero.")
+
         self.__rows = rows
         self.__columns = columns
         self.__positions = []
     
     def add_element(self, element, x=None, y=None):
         if len([displacement for displacement in self.__positions if displacement.element == element]) > 0:
-            raise RuntimeError()
+            raise RuntimeError("The element is already placed.")
         if (x is not None and (x < 0 or x >= self.__columns)) or (y is not None and (y < 0 or y >= self.__rows)):
-            raise RuntimeError()
+            raise IndexError("The position (x, y) must be within the boundaries.")
         if x is not None and y is not None:
             new_displacement = Displacement(x, y, element)
             if len([displacement for displacement in self.__positions if displacement.x == x and displacement.y == y]) > 0:
@@ -91,24 +106,24 @@ class Space(object):
                 else:
                     random_gateway_index = randint(0, len(near_gateways) - 1)
                     near_gateways[random_gateway_index].connect_device(element)
+            return (x, y)
         else:
             added = False
+            x = 0
+            y = 0
             while not added:
                 x = randint(0, self.__columns - 1)
                 y = randint(0, self.__rows - 1)
                 try:
-                    self.add_element(element, x=x, y=y)
+                    (x, y) = self.add_element(element, x=x, y=y)
                     added = True
                 except ValueError as error:
                     continue
-                    
-
-    #TODO
-    #Dato un device, ritorna la lista di gateway a 25 m da lui
-    #Aggiungere controlli sui metodi
+            return (x, y)
 
     def get_near_gateways(self, element):
-        #TODO Controllare se element c'è
+        if element is None or len([displacement for displacement in self.__positions if displacement.element == element]) == 0:
+            raise ValueError("The element is not present or it's null.")
         gateway_displacements = [displacement for displacement in self.__positions if isinstance(displacement.element, Gateway)]
         element_displacement = [displacement for displacement in self.__positions if displacement.element == element][0]
         near_gateways = []
@@ -125,7 +140,7 @@ class Device(object):
 
     def __init__(self, type):
         if type is None or not isinstance(type, DeviceType):
-            raise ValueError("The device type must be not null.")
+            raise TypeError("The device type must be not null.")
 
         if type == DeviceType.TYPE_A:
             Device.COUNTER_A += 1
@@ -143,6 +158,9 @@ class Device(object):
 
     def __repr__(self):
         return "Device {} Type {}".format(self.__ID, self.__type)
+    
+    def __str__(self):
+        return self.__repr__
 
     def __bandwidth_variation(self, starting_gateway, destination_gateway):
         n1 = starting_gateway.get_device_count(self.type)
@@ -163,7 +181,7 @@ class Device(object):
     def gateway_selection(self, space):
         near_gateways = space.get_near_gateways(self)
         current_gateway = [gateway for gateway in near_gateways if self in gateway][0]
-        changed = False
+        changed = 0
         for near_gateway in near_gateways:
             if near_gateway != current_gateway:
                 delta = self.__bandwidth_variation(current_gateway, near_gateway)
@@ -171,7 +189,7 @@ class Device(object):
                     current_gateway.disconnect_device(self)
                     near_gateway.connect_device(self)
                     current_gateway = near_gateway
-                    changed = True
+                    changed = 1
         return changed
 
     ID = property(lambda self: self.__ID)
