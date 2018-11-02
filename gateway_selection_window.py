@@ -1,5 +1,6 @@
 import tkinter as tk
 import tkinter.messagebox as mb
+from PIL import Image, ImageTk
 from gateway_selection import Device, Space, Gateway, DeviceType
 
 class GatewaySelectionWindow(object):
@@ -94,19 +95,54 @@ class GatewaySelectionWindow(object):
                     control["state"] = tk.DISABLED
                 else:
                     control["state"] = tk.NORMAL
+    
+    def __update_scrollregion(self, event):
+        self.__space_canvas.configure(scrollregion=self.__space_canvas.bbox("all"))
+
+    def __on_vertical(self, event):
+        self.__space_canvas.yview_scroll(-1 * event.delta, 'mm')
+
+    def __on_horizontal(self, event):
+        self.__space_canvas.xview_scroll(-1 * event.delta, 'mm')
 
     def __build_space(self, parameters):
-        self.__space_canvas = tk.Canvas(self.__main_frame, bg="black", width=45*parameters["columns"], height=45*parameters["rows"])
+        canvas_width = 45 * parameters["columns"]
+        canvas_height = 45 * parameters["rows"]
+        
+
+        self.__space_canvas = tk.Canvas(self.__main_frame, bg="black", width=canvas_width, height=canvas_height, scrollregion=(0, 0, canvas_width, canvas_width))
+
+        self.__canvas_frame = tk.Frame(self.__space_canvas, bg="white", width=canvas_width, height=canvas_height)
+        self.__canvas_frame.pack(expand=tk.TRUE, fill=tk.BOTH, side=tk.TOP)
+        self.__space_canvas.bind("<Configure>", self.__update_scrollregion)
+        #self.__space_canvas.bind_all('<MouseWheel>', self.__on_vertical)
+        #self.__space_canvas.bind_all('<Shift-MouseWheel>', self.__on_horizontal)
+        
+        horizontal_scroll_bar = tk.Scrollbar(self.__main_frame, orient=tk.HORIZONTAL)
+        horizontal_scroll_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        horizontal_scroll_bar.config(command=self.__space_canvas.xview)
+
+        vertical_scroll_bar = tk.Scrollbar(self.__main_frame, orient=tk.VERTICAL)
+        vertical_scroll_bar.pack(side=tk.RIGHT, fill=tk.Y)
+        vertical_scroll_bar.config(command=self.__space_canvas.yview)
 
         self.__gateways = [Gateway(parameters["bandwidth"], radius=parameters["radius"]) for _ in range(parameters["gateways"])]
         self.__a_devices = [Device(DeviceType.TYPE_A) for _ in range(parameters["a_devices"])]
         self.__b_devices = [Device(DeviceType.TYPE_B) for _ in range(parameters["b_devices"])]
         self.__space = Space(parameters["rows"], parameters["columns"])
-
+        self.__image = ImageTk.PhotoImage(Image.open("square.png"))
         for element in self.__gateways + self.__a_devices + self.__b_devices:
-            print(self.__space.add_element(element))      
+            (x, y) = self.__space.add_element(element)
+            x_canvas = x * 45 + 2.5
+            y_canvas = y * 45 + 2.5
+            tk.Label(self.__canvas_frame, image=self.__image).pack()
+            #self.__space_canvas.create_image(x_canvas, y_canvas, image=self.__image)
+                  
 
-        self.__space_canvas.pack(expand=tk.TRUE, fill=tk.BOTH, side=tk.TOP)
+        self.__space_canvas.create_window(0, 0, window=self.__canvas_frame, anchor='nw')
+        self.__space_canvas.config(width=canvas_width, height=canvas_height)
+        self.__space_canvas.config(xscrollcommand=horizontal_scroll_bar.set, yscrollcommand=vertical_scroll_bar.set)
+        self.__space_canvas.pack(expand=tk.TRUE, fill=tk.BOTH, side=tk.LEFT)
 
     def __start_stop_simulation(self):
         if self.__start_stop_simulation["text"] == "Start simulation":
