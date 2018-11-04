@@ -10,10 +10,27 @@ class GatewaySelectionWindow(object):
 
     def __init__(self, root):
         self.__main_frame = tk.Frame(root)
-
         self.__controls_frame = tk.Frame(self.__main_frame)
 
+        self.__images = {
+            "black_gateway" : ImageTk.PhotoImage(Image.open("./icons/black_gateway.gif")),
+            "red_gateway" : ImageTk.PhotoImage(Image.open("./icons/red_gateway.gif")),
+            "blue_sensor" : ImageTk.PhotoImage(Image.open("./icons/blue_sensor.gif")),
+            "red_sensor" : ImageTk.PhotoImage(Image.open("./icons/red_sensor.gif")),
+            "yellow_sensor" : ImageTk.PhotoImage(Image.open("./icons/yellow_sensor.gif"))
+        }
+        
+        self.__build_first_controls_row()
+        self.__build_second_controls_row()
+
+        self.__controls_frame.pack(expand=tk.TRUE, fill=tk.BOTH, side=tk.TOP)
+        self.__main_frame.pack(expand=tk.TRUE, fill=tk.BOTH)
+
+        self.istances = []
+
+    def __build_first_controls_row(self):
         tk.Label(self.__controls_frame, text="Height [m]:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E + tk.W)
+        
         self.__rows_entry = tk.Entry(self.__controls_frame, width=5, justify=tk.CENTER)
         self.__rows_entry.insert(tk.END, "10")
         self.__rows_entry.grid(row=0, column=1, padx=5, pady=5, sticky=tk.E + tk.W)
@@ -38,6 +55,7 @@ class GatewaySelectionWindow(object):
         self.__b_devices_entry.insert(tk.END, "10")
         self.__b_devices_entry.grid(row=0, column=9, padx=5, pady=5, sticky=tk.E + tk.W)
 
+    def __build_second_controls_row(self):
         tk.Label(self.__controls_frame, text="Bandwidth [Mbps]:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.E + tk.W)
         self.__bandwidth_entry = tk.Entry(self.__controls_frame, width=5, justify=tk.CENTER)
         self.__bandwidth_entry.insert(tk.END, "100")
@@ -63,11 +81,7 @@ class GatewaySelectionWindow(object):
         self.__start_stop_simulation = tk.Button(self.__controls_frame, text="Start simulation", command=self.__start_stop_simulation)
         self.__start_stop_simulation.grid(row=1, column=8, columnspan=2, padx=5, pady=5, sticky=tk.E + tk.W)
 
-        self.__controls_frame.pack(expand=tk.TRUE, fill=tk.BOTH, side=tk.TOP)
-        self.__main_frame.pack(expand=tk.TRUE, fill=tk.BOTH)
-
     def __validate_entry(self, entry, name):
-         
         try:
             entry_value = int(entry.get())
             if entry_value <= 0:
@@ -97,72 +111,61 @@ class GatewaySelectionWindow(object):
                     control["state"] = tk.NORMAL
     
     def __update_scrollregion(self, event):
-        self.__space_canvas.configure(scrollregion=self.__space_canvas.bbox("all"))
-
-    def __on_vertical(self, event):
-        self.__space_canvas.yview_scroll(-1 * event.delta, 'mm')
-
-    def __on_horizontal(self, event):
-        self.__space_canvas.xview_scroll(-1 * event.delta, 'mm')
+        self.__space_canvas.configure(scrollregion=(0, 0, self.__canvas_width, self.__canvas_height))
 
     def __build_space(self, parameters):
-        canvas_width = 10 * parameters["columns"]
-        canvas_height = 10 * parameters["rows"]
+        cell_size = 40
+        self.__canvas_width = cell_size * parameters["columns"]
+        self.__canvas_height = cell_size * parameters["rows"]
         
-        self.__space_canvas = tk.Canvas(self.__main_frame, bg="white", width=canvas_width, height=canvas_height, scrollregion=(0, 0, canvas_width, canvas_height))
-        self.__space_canvas.bind("<Configure>", self.__update_scrollregion)
-#
-        #self.__canvas_frame = tk.Frame(self.__main_frame, bg="white")#, width=canvas_width, height=canvas_height)
-        #self.__canvas_frame.pack(expand=tk.FALSE, fill=tk.BOTH, side=tk.LEFT, anchor=tk.CENTER)
-        #
-        ##self.__space_canvas.bind_all('<MouseWheel>', self.__on_vertical)
-        ##self.__space_canvas.bind_all('<Shift-MouseWheel>', self.__on_horizontal)
-        #
-        horizontal_scroll_bar = tk.Scrollbar(self.__main_frame, orient=tk.HORIZONTAL)
-        horizontal_scroll_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        horizontal_scroll_bar.config(command=self.__space_canvas.xview)
+        self.__space_canvas = tk.Canvas(self.__main_frame, width=self.__canvas_width, height=self.__canvas_height, scrollregion=(0, 0, self.__canvas_width, self.__canvas_height))
 
-        vertical_scroll_bar = tk.Scrollbar(self.__main_frame, orient=tk.VERTICAL)
-        vertical_scroll_bar.pack(side=tk.RIGHT, fill=tk.Y)
-        vertical_scroll_bar.config(command=self.__space_canvas.yview)
+        self.__horizontal_scroll_bar = tk.Scrollbar(self.__main_frame, orient=tk.HORIZONTAL)
+        self.__horizontal_scroll_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.__horizontal_scroll_bar.config(command=self.__space_canvas.xview)
+
+        self.__vertical_scroll_bar = tk.Scrollbar(self.__main_frame, orient=tk.VERTICAL)
+        self.__vertical_scroll_bar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.__vertical_scroll_bar.config(command=self.__space_canvas.yview)
 
         self.__gateways = [Gateway(parameters["bandwidth"], radius=parameters["radius"]) for _ in range(parameters["gateways"])]
         self.__a_devices = [Device(DeviceType.TYPE_A) for _ in range(parameters["a_devices"])]
         self.__b_devices = [Device(DeviceType.TYPE_B) for _ in range(parameters["b_devices"])]
         self.__space = Space(parameters["rows"], parameters["columns"])
-
-        self.__image = ImageTk.PhotoImage(Image.open("square.png"))
-
-        for i in range(parameters["rows"]):
-            for j in range(parameters["columns"]):
-                box = (i * 10, j * 10, (i + 1) * 10, (j + 1) * 10)
-                self.__space_canvas.create_rectangle(box)
         
-        g = []
+        self.__positions = {}
         
         for element in self.__gateways + self.__a_devices + self.__b_devices:
             (x, y) = self.__space.add_element(element)
-            color = "blue"
+            self.__positions[element] = (x, y)
             if isinstance(element, Device):
                 if element.type == DeviceType.TYPE_A:
-                    color = "red"
+                    self.__space_canvas.create_image(x * cell_size, y * cell_size, image=self.__images["blue_sensor"], anchor=tk.NW)
                 else:
-                    color = "green"
+                    self.__space_canvas.create_image(x * cell_size, y * cell_size, image=self.__images["red_sensor"], anchor=tk.NW)
             elif isinstance(element, Gateway):
-                color = "yellow"
-                g.append((x, y))
-            box = (x * 10, y * 10, (x + 1) * 10, (y + 1) * 10)
-            self.__space_canvas.create_rectangle(box, fill=color)
+                x_center = x * cell_size + (cell_size / 2.0)
+                y_center = y * cell_size + (cell_size / 2.0)
+                r = element.radius * cell_size
+                #x1 = max(x_center - r, 0)
+                #x2 = min(x_center + r, canvas_width)
+                #y1 = max(y_center - r, 0)
+                #y2 = min(y_center + r, canvas_height)
+                #self.__space_canvas.create_arc(x_center - r, y_center - r, x_center + r, y_center + r)
+                self.__space_canvas.create_oval(x_center - r, y_center - r, x_center + r, y_center + r)
+                #self.__space_canvas.create_oval(x1, y1, x2, y2)
+                self.__space_canvas.create_image(x * cell_size, y * cell_size, image=self.__images["black_gateway"], anchor=tk.NW)
         
-        for (x, y) in g:
-            pass
+        for i in range(parameters["rows"]):
+            for j in range(parameters["columns"]):
+                box = (i * cell_size, j * cell_size, (i + 1) * cell_size, (j + 1) * cell_size)
+                self.__space_canvas.create_rectangle(box)
                   
-        self.__space_canvas.configure(scrollregion=self.__space_canvas.bbox("all"))
-        #self.__space_canvas.create_window(0, 0, window=self.__canvas_frame, anchor='nw')
-        self.__space_canvas.config(width=canvas_width, height=canvas_height)
-        self.__space_canvas.config(xscrollcommand=horizontal_scroll_bar.set, yscrollcommand=vertical_scroll_bar.set)
-        self.__space_canvas.pack(expand=tk.TRUE, fill=tk.BOTH, side=tk.LEFT)
-        #
+        self.__space_canvas.bind("<Configure>", self.__update_scrollregion)
+        self.__space_canvas.configure(scrollregion=(0, 0, self.__canvas_width, self.__canvas_height))#self.__space_canvas.bbox("all"))
+        self.__space_canvas.configure(width=self.__canvas_width, height=self.__canvas_height)
+        self.__space_canvas.config(xscrollcommand=self.__horizontal_scroll_bar.set, yscrollcommand=self.__vertical_scroll_bar.set)
+        self.__space_canvas.pack(expand=tk.TRUE, fill=tk.NONE, anchor=tk.CENTER, side=tk.TOP)
 
     def __start_stop_simulation(self):
         if self.__start_stop_simulation["text"] == "Start simulation":
@@ -177,15 +180,18 @@ class GatewaySelectionWindow(object):
                 mb.showerror("Input parameter error!", parameterException.args[0])
                 parameterException.args[1].delete(0, tk.END)
         else:
+            self.__space_canvas.destroy()
+            self.__horizontal_scroll_bar.destroy()
+            self.__vertical_scroll_bar.destroy()
             self.__toggle_controls()
             self.__start_stop_simulation["text"] = "Start simulation"
 
 
 def main():
+    pass
+
+if __name__ == "__main__":
     root = tk.Tk()
     root.title("Gateway selection")
     window = GatewaySelectionWindow(root)
     root.mainloop()
-
-if __name__ == "__main__":
-    main()
