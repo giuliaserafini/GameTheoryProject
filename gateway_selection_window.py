@@ -2,6 +2,9 @@ import tkinter as tk
 import tkinter.messagebox as mb
 from PIL import Image, ImageTk
 from gateway_selection import Device, Space, Gateway, DeviceType
+import threading
+import time
+import multiprocessing
 
 class GatewaySelectionWindow(object):
     BOTH = ("Both", 1)
@@ -25,8 +28,6 @@ class GatewaySelectionWindow(object):
 
         self.__controls_frame.pack(expand=tk.TRUE, fill=tk.BOTH, side=tk.TOP)
         self.__main_frame.pack(expand=tk.TRUE, fill=tk.BOTH)
-
-        self.istances = []
 
     def __build_first_controls_row(self):
         tk.Label(self.__controls_frame, text="Height [m]:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.E + tk.W)
@@ -113,10 +114,23 @@ class GatewaySelectionWindow(object):
     def __update_scrollregion(self, event):
         self.__space_canvas.configure(scrollregion=(0, 0, self.__canvas_width, self.__canvas_height))
 
+    def __update_payoffs(self):
+        payoff_a = 0
+        payoff_b = 0
+        for gateway in self.__gateways:
+            n = gateway.get_device_count(DeviceType.TYPE_A)
+            m = gateway.get_device_count(DeviceType.TYPE_B)
+            if n + m == 0:
+                continue
+            device_bandwidth = gateway.bandwidth / (n + m)
+            payoff_a += device_bandwidth * n
+            payoff_b += device_bandwidth * m
+        self.__main_frame.winfo_toplevel().title("WA = {0:.2f} WB = {0:.2f}".format(payoff_a, payoff_b))
+
     def __build_space(self, parameters):
-        cell_size = 40
-        self.__canvas_width = cell_size * parameters["columns"]
-        self.__canvas_height = cell_size * parameters["rows"]
+        self.__cell_size = 40
+        self.__canvas_width = self.__cell_size * parameters["columns"]
+        self.__canvas_height = self.__cell_size * parameters["rows"]
         
         self.__space_canvas = tk.Canvas(self.__main_frame, width=self.__canvas_width, height=self.__canvas_height, scrollregion=(0, 0, self.__canvas_width, self.__canvas_height))
 
@@ -139,26 +153,21 @@ class GatewaySelectionWindow(object):
             (x, y) = self.__space.add_element(element)
             self.__positions[element] = (x, y)
             if isinstance(element, Device):
+                element.set_gateway_callback(self.__gateway_callback)
                 if element.type == DeviceType.TYPE_A:
-                    self.__space_canvas.create_image(x * cell_size, y * cell_size, image=self.__images["blue_sensor"], anchor=tk.NW)
+                    self.__space_canvas.create_image(x * self.__cell_size, y * self.__cell_size, image=self.__images["blue_sensor"], anchor=tk.NW)
                 else:
-                    self.__space_canvas.create_image(x * cell_size, y * cell_size, image=self.__images["red_sensor"], anchor=tk.NW)
+                    self.__space_canvas.create_image(x * self.__cell_size, y * self.__cell_size, image=self.__images["red_sensor"], anchor=tk.NW)
             elif isinstance(element, Gateway):
-                x_center = x * cell_size + (cell_size / 2.0)
-                y_center = y * cell_size + (cell_size / 2.0)
-                r = element.radius * cell_size
-                #x1 = max(x_center - r, 0)
-                #x2 = min(x_center + r, canvas_width)
-                #y1 = max(y_center - r, 0)
-                #y2 = min(y_center + r, canvas_height)
-                #self.__space_canvas.create_arc(x_center - r, y_center - r, x_center + r, y_center + r)
+                x_center = x * self.__cell_size + (self.__cell_size / 2.0)
+                y_center = y * self.__cell_size + (self.__cell_size / 2.0)
+                r = element.radius * self.__cell_size
                 self.__space_canvas.create_oval(x_center - r, y_center - r, x_center + r, y_center + r)
-                #self.__space_canvas.create_oval(x1, y1, x2, y2)
-                self.__space_canvas.create_image(x * cell_size, y * cell_size, image=self.__images["black_gateway"], anchor=tk.NW)
+                self.__space_canvas.create_image(x * self.__cell_size, y * self.__cell_size, image=self.__images["black_gateway"], anchor=tk.NW)
         
         for i in range(parameters["rows"]):
             for j in range(parameters["columns"]):
-                box = (i * cell_size, j * cell_size, (i + 1) * cell_size, (j + 1) * cell_size)
+                box = (i * self.__cell_size, j * self.__cell_size, (i + 1) * self.__cell_size, (j + 1) * self.__cell_size)
                 self.__space_canvas.create_rectangle(box)
                   
         self.__space_canvas.bind("<Configure>", self.__update_scrollregion)
@@ -166,6 +175,47 @@ class GatewaySelectionWindow(object):
         self.__space_canvas.configure(width=self.__canvas_width, height=self.__canvas_height)
         self.__space_canvas.config(xscrollcommand=self.__horizontal_scroll_bar.set, yscrollcommand=self.__vertical_scroll_bar.set)
         self.__space_canvas.pack(expand=tk.TRUE, fill=tk.NONE, anchor=tk.CENTER, side=tk.TOP)
+
+        self.__stop = False
+        self.__selection_algorithm_thread = threading.Thread(target=self.__selection_algorithm)#multiprocessing.Process(target=self.__selection_algorithm)
+        self.__selection_algorithm_thread.start()
+    
+    def __selection_algorithm(self):
+        strategy = self.__strategies_variable.get()
+        devices = []
+        loop_detected = False
+        changes = 0
+        if strategy == self.BOTH[1]:
+            devices = self.__a_devices + self.__b_devices
+        elif strategy == self.ONLY_A[1]:
+            devices = self.__a_devices
+        else:
+            devices = self.__b_devices
+        while not self.__stop and not loop_detected and changes != len(devices):
+            changes = 0
+            self.__update_payoffs()
+            for device in devices:
+                if self.__stop:
+                    continue
+                (x, y) = self.__positions[device]
+                device_temporary_image = self.__space_canvas.create_image(self.__cell_size * x, self.__cell_size * y, image=self.__images["yellow_sensor"], anchor=tk.NW)
+                if not device.gateway_selection(self.__space):
+                    changes += 1
+                self.__space_canvas.delete(device_temporary_image)
+        self.__update_payoffs()
+
+    def __gateway_callback(self, gateway, device):
+        if not self.__stop:
+            (x1, y1) = self.__positions[gateway]
+            (x2, y2) = self.__positions[device]
+            (xs, ys) = (x2 * self.__cell_size + self.__cell_size / 2, y2 * self.__cell_size + self.__cell_size / 2)
+            (xe, ye) = (x1 * self.__cell_size + self.__cell_size / 2, y1 * self.__cell_size + self.__cell_size / 2)
+            gateway_temporary_image = self.__space_canvas.create_image(self.__cell_size * x1, self.__cell_size * y1, image=self.__images["red_gateway"], anchor=tk.NW)
+            line_temporary = self.__space_canvas.create_line(xs, ys, xe, ye)
+            time.sleep(0.5)
+            self.__space_canvas.delete(gateway_temporary_image)
+            self.__space_canvas.delete(line_temporary)
+            print("sono qua nel callback")
 
     def __start_stop_simulation(self):
         if self.__start_stop_simulation["text"] == "Start simulation":
@@ -180,6 +230,9 @@ class GatewaySelectionWindow(object):
                 mb.showerror("Input parameter error!", parameterException.args[0])
                 parameterException.args[1].delete(0, tk.END)
         else:
+            if self.__selection_algorithm_thread.is_alive():
+                self.__stop = True
+                self.__selection_algorithm_thread.join()
             self.__space_canvas.destroy()
             self.__horizontal_scroll_bar.destroy()
             self.__vertical_scroll_bar.destroy()

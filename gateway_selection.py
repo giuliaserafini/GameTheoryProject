@@ -47,6 +47,9 @@ class Gateway(object):
     def __eq__(self, other):
         return other.ID == self.ID if isinstance(other, Gateway) else False
     
+    def __hash__(self):
+        return hash((self.__ID, self.__bandwidth, self.__radius))
+    
     def __repr__(self):
         return "Gateway" + str(self.__ID)
     
@@ -152,9 +155,13 @@ class Device(object):
             raise ValueError("Unsupported device type.")
 
         self.__type = type
+        self.__gateway_callback = None
     
     def __eq__(self, other):
         return other.ID == self.ID and other.type == self.type if isinstance(other, Device) else False
+    
+    def __hash__(self):
+        return hash((self.__ID, self.__type))
 
     def __repr__(self):
         return "Device {} Type {}".format(self.__ID, self.__type)
@@ -184,6 +191,8 @@ class Device(object):
         changed = 0
         for near_gateway in near_gateways:
             if near_gateway != current_gateway:
+                if self.__gateway_callback != None:
+                    self.__gateway_callback(near_gateway, self)
                 delta = self.__bandwidth_variation(current_gateway, near_gateway)
                 if delta > 0:
                     current_gateway.disconnect_device(self)
@@ -191,9 +200,25 @@ class Device(object):
                     current_gateway = near_gateway
                     changed = 1
         return changed
+    
+    def set_gateway_callback(self, gateway_callback):
+        self.__gateway_callback = gateway_callback
 
     ID = property(lambda self: self.__ID)
     type = property(lambda self: self.__type)
+
+def update_bandwidth(gateways):
+    payoff_a = 0
+    payoff_b = 0
+    for gateway in gateways:
+        n = gateway.get_device_count(DeviceType.TYPE_A)
+        m = gateway.get_device_count(DeviceType.TYPE_B)
+        if n + m == 0:
+            continue
+        device_bandwidth = gateway.bandwidth / (n + m)
+        payoff_a += device_bandwidth * n
+        payoff_b += device_bandwidth * m
+    print("WA = {0:.2f} WB = {0:.2f}".format(payoff_a, payoff_b))
 
 def main():
     N = 100
@@ -211,11 +236,22 @@ def main():
         space.add_element(d)
     
     not_changed = 0
-    while not_changed != len(devices_a):
+    last_value = 0
+    counter = 0
+    while not_changed != len(devices):
         not_changed = 0
-        for d in devices_a:
+        for d in devices:
             if not d.gateway_selection(space):
                 not_changed += 1
+        update_bandwidth(gateways)
+        if not_changed - 2 <= last_value and not_changed <= not_changed + 2:
+            counter += 1
+            if counter == 30:
+                update_bandwidth(gateways)
+                return
+        else:
+            last_value = not_changed
+            counter = 0
         print(not_changed)
     
     print("FINITOOOOOO")
