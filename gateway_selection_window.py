@@ -1,6 +1,6 @@
 import tkinter as tk
 import tkinter.messagebox as mb
-from PIL import Image, ImageTk
+#from PIL import Image, ImageTk
 from gateway_selection import Device, Space, Gateway, DeviceType
 import threading
 import time
@@ -14,13 +14,13 @@ class GatewaySelectionWindow(object):
     def __init__(self, root):
         self.__main_frame = tk.Frame(root)
         self.__controls_frame = tk.Frame(self.__main_frame)
-
+        #)
         self.__images = {
-            "black_gateway" : ImageTk.PhotoImage(Image.open("./icons/black_gateway.gif")),
-            "red_gateway" : ImageTk.PhotoImage(Image.open("./icons/red_gateway.gif")),
-            "blue_sensor" : ImageTk.PhotoImage(Image.open("./icons/blue_sensor.gif")),
-            "red_sensor" : ImageTk.PhotoImage(Image.open("./icons/red_sensor.gif")),
-            "yellow_sensor" : ImageTk.PhotoImage(Image.open("./icons/yellow_sensor.gif"))
+            "black_gateway" : tk.PhotoImage(file="./icons/black_gateway.gif"),
+            "red_gateway" : tk.PhotoImage(file="./icons/red_gateway.gif"),
+            "blue_sensor" : tk.PhotoImage(file="./icons/blue_sensor.gif"),
+            "red_sensor" : tk.PhotoImage(file="./icons/red_sensor.gif"),
+            "yellow_sensor" : tk.PhotoImage(file="./icons/yellow_sensor.gif")
         }
         
         self.__build_first_controls_row()
@@ -120,6 +120,7 @@ class GatewaySelectionWindow(object):
         for gateway in self.__gateways:
             n = gateway.get_device_count(DeviceType.TYPE_A)
             m = gateway.get_device_count(DeviceType.TYPE_B)
+            print(n, m)
             if n + m == 0:
                 continue
             device_bandwidth = gateway.bandwidth / (n + m)
