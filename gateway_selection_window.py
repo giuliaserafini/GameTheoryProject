@@ -114,19 +114,21 @@ class GatewaySelectionWindow(object):
     def __update_scrollregion(self, event):
         self.__space_canvas.configure(scrollregion=(0, 0, self.__canvas_width, self.__canvas_height))
 
-    def __update_payoffs(self):
+    def __update_payoffs(self, message=""):
         payoff_a = 0
         payoff_b = 0
         for gateway in self.__gateways:
             n = gateway.get_device_count(DeviceType.TYPE_A)
             m = gateway.get_device_count(DeviceType.TYPE_B)
-            print(n, m)
+            
             if n + m == 0:
                 continue
             device_bandwidth = gateway.bandwidth / (n + m)
+            print(n, m, device_bandwidth)
             payoff_a += device_bandwidth * n
             payoff_b += device_bandwidth * m
-        self.__main_frame.winfo_toplevel().title("WA = {0:.2f} WB = {0:.2f}".format(payoff_a, payoff_b))
+        self.__main_frame.winfo_toplevel().title("WA = {0:.2f} WB = {1:.2f} {2}".format(payoff_a, payoff_b, message))
+
 
     def __build_space(self, parameters):
         self.__cell_size = 40
@@ -185,15 +187,17 @@ class GatewaySelectionWindow(object):
         strategy = self.__strategies_variable.get()
         devices = []
         loop_detected = False
-        changes = 0
+        not_changed = 0
+        last_value = 0
+        counter = 0
         if strategy == self.BOTH[1]:
             devices = self.__a_devices + self.__b_devices
         elif strategy == self.ONLY_A[1]:
             devices = self.__a_devices
         else:
             devices = self.__b_devices
-        while not self.__stop and not loop_detected and changes != len(devices):
-            changes = 0
+        while not self.__stop and not loop_detected and not_changed != len(devices):
+            not_changed = 0
             self.__update_payoffs()
             for device in devices:
                 if self.__stop:
@@ -201,9 +205,18 @@ class GatewaySelectionWindow(object):
                 (x, y) = self.__positions[device]
                 device_temporary_image = self.__space_canvas.create_image(self.__cell_size * x, self.__cell_size * y, image=self.__images["yellow_sensor"], anchor=tk.NW)
                 if not device.gateway_selection(self.__space):
-                    changes += 1
+                    not_changed += 1
                 self.__space_canvas.delete(device_temporary_image)
-        self.__update_payoffs()
+            if not_changed - 2 <= last_value and last_value <= not_changed + 2:
+                counter += 1
+                if counter == 10:
+                    loop_detected = True
+            else:
+                last_value = not_changed
+                counter = 0
+        self.__update_payoffs("finished")
+        self.__stop = False
+
 
     def __gateway_callback(self, gateway, device):
         if not self.__stop:
@@ -213,10 +226,9 @@ class GatewaySelectionWindow(object):
             (xe, ye) = (x1 * self.__cell_size + self.__cell_size / 2, y1 * self.__cell_size + self.__cell_size / 2)
             gateway_temporary_image = self.__space_canvas.create_image(self.__cell_size * x1, self.__cell_size * y1, image=self.__images["red_gateway"], anchor=tk.NW)
             line_temporary = self.__space_canvas.create_line(xs, ys, xe, ye)
-            time.sleep(0.5)
+            time.sleep(0.1)
             self.__space_canvas.delete(gateway_temporary_image)
             self.__space_canvas.delete(line_temporary)
-            print("sono qua nel callback")
 
     def __start_stop_simulation(self):
         if self.__start_stop_simulation["text"] == "Start simulation":
@@ -231,9 +243,10 @@ class GatewaySelectionWindow(object):
                 mb.showerror("Input parameter error!", parameterException.args[0])
                 parameterException.args[1].delete(0, tk.END)
         else:
-            if self.__selection_algorithm_thread.is_alive():
+            if self.__selection_algorithm_thread.isAlive:
                 self.__stop = True
-                self.__selection_algorithm_thread.join()
+                while self.__stop:
+                    continue
             self.__space_canvas.destroy()
             self.__horizontal_scroll_bar.destroy()
             self.__vertical_scroll_bar.destroy()
