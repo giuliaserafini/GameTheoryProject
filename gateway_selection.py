@@ -82,6 +82,7 @@ class Gateway(object):
     bandwidth = property(lambda self: self.__bandwidth)
     devices_count = property(lambda self: len(self.__devices))
     radius = property(lambda self: self.__radius)
+    devices = property(lambda self: self.__devices)
 
 class Displacement(object):
     """
@@ -186,6 +187,9 @@ class Space(object):
                 (gateway_displacement.y - element_displacement.y) ** 2 <= gateway_displacement.element.radius ** 2:
                 near_gateways.append(gateway_displacement.element)
         return near_gateways
+    
+    def get_device_gateway(self, element):
+        return [gateway for gateway in self.get_near_gateways(element) if element in gateway][0]
 
 
 class Device(object):

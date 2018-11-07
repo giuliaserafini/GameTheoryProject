@@ -129,11 +129,49 @@ class GatewaySelectionWindow(object):
             payoff_b += device_bandwidth * m
         self.__main_frame.winfo_toplevel().title("WA = {0:.2f} WB = {1:.2f} {2}".format(payoff_a, payoff_b, message))
 
+    def __mouse_hover(self, event):
+        for element in self.__positions.keys():
+            (x, y) = self.__positions[element]
+            #print(event.x, event.y, x, x + self.__cell_size, y, y + self.__cell_size)
+            xs, ys = x * self.__cell_size, y * self.__cell_size
+            xe, ye = (x + 1) * self.__cell_size, (y + 1) * self.__cell_size
+            if (xs <= event.x and event.x <= xe) and (ys <= event.y and event.y <= ye):
+                print(x, y)
+                if not self.__on_element:
+                    self.__on_element = True
+                    self.__element_focus = element
+                    
+                    if isinstance(element, Device):
+                        gateway = self.__space.get_device_gateway(element)
+                        gateway_position = self.__positions[gateway]
+                        x1, y1 = x * self.__cell_size + self.__cell_size / 2, y * self.__cell_size + self.__cell_size / 2
+                        x2, y2 = gateway_position[0] * self.__cell_size + self.__cell_size / 2, gateway_position[1] * self.__cell_size + self.__cell_size / 2
+                        self.__line_id.append(self.__space_canvas.create_line(x1, y1, x2, y2))
+                    else:
+                        x1, y1 = x * self.__cell_size + self.__cell_size / 2, y * self.__cell_size + self.__cell_size / 2
+                        for device in element.devices:
+                            device_position = self.__positions[device]
+                            x2, y2 = device_position[0] * self.__cell_size + self.__cell_size / 2, device_position[1] * self.__cell_size + self.__cell_size / 2
+                            self.__line_id.append(self.__space_canvas.create_line(x1, y1, x2, y2))
+                if self.__element_focus == element:
+                    return
+                elif self.__element_focus != element:
+                    self.__element_focus = element
+                print(x, y)
+        if self.__on_element:
+            self.__on_element = False
+            for idd in self.__line_id:
+                self.__space_canvas.delete(idd)
+            self.__line_id.clear()
 
     def __build_space(self, parameters):
         self.__cell_size = 40
         self.__canvas_width = self.__cell_size * parameters["columns"]
         self.__canvas_height = self.__cell_size * parameters["rows"]
+
+        self.__on_element = False
+        self.__element_focus = None
+        self.__line_id = []
         
         self.__space_canvas = tk.Canvas(self.__main_frame, width=self.__canvas_width, height=self.__canvas_height, scrollregion=(0, 0, self.__canvas_width, self.__canvas_height))
 
@@ -174,6 +212,7 @@ class GatewaySelectionWindow(object):
                 self.__space_canvas.create_rectangle(box)
                   
         self.__space_canvas.bind("<Configure>", self.__update_scrollregion)
+        self.__space_canvas.bind("<Motion>", self.__mouse_hover)
         self.__space_canvas.configure(scrollregion=(0, 0, self.__canvas_width, self.__canvas_height))#self.__space_canvas.bbox("all"))
         self.__space_canvas.configure(width=self.__canvas_width, height=self.__canvas_height)
         self.__space_canvas.config(xscrollcommand=self.__horizontal_scroll_bar.set, yscrollcommand=self.__vertical_scroll_bar.set)
@@ -200,8 +239,6 @@ class GatewaySelectionWindow(object):
             not_changed = 0
             self.__update_payoffs()
             for device in devices:
-                if self.__stop:
-                    continue
                 (x, y) = self.__positions[device]
                 device_temporary_image = self.__space_canvas.create_image(self.__cell_size * x, self.__cell_size * y, image=self.__images["yellow_sensor"], anchor=tk.NW)
                 if not device.gateway_selection(self.__space):
@@ -245,8 +282,7 @@ class GatewaySelectionWindow(object):
         else:
             if self.__selection_algorithm_thread.isAlive:
                 self.__stop = True
-                while self.__stop:
-                    continue
+                time.sleep(5)
             self.__space_canvas.destroy()
             self.__horizontal_scroll_bar.destroy()
             self.__vertical_scroll_bar.destroy()
